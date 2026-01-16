@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 from pathlib import Path
 from typing import Dict, List
@@ -58,113 +59,113 @@ def load_lecture_schedule(path: str) -> pd.DataFrame:
 
 
 def build_data(df: pd.DataFrame, lecture_df: pd.DataFrame | None = None) -> Dict[str, List[dict]]:
-    entries: List[dict] = []
-    session_map: Dict[str, dict] = {}
-    for _, row in df.iterrows():
-        weeks = sorted(parse_weeks(row.get("上课周次")))
-        weeks_label = "，".join(f"{w}周" for w in weeks)
-        weekday_raw = str(row.get("上课星期", "")).strip()
-        weekday_num = WEEKDAY_MAP.get(weekday_raw, 0)
-        weekday_label = weekday_raw or NUM_TO_WEEKDAY.get(weekday_num, "")
-        start_period = _to_int(row.get("开始节次"))
-        end_period = _to_int(row.get("结束节次"))
-        time_of_day = _time_of_day(start_period)
-        project = str(row.get("实验项目名称", "")).strip()
-        teacher = str(row.get("上课教师", "")).strip()
-        group_key = f"{project}|{teacher}|{weekday_num}|{start_period}|{end_period}|{weeks_label}"
+  entries: List[dict] = []
+  session_map: Dict[str, dict] = {}
+  for _, row in df.iterrows():
+    weeks = sorted(parse_weeks(row.get("上课周次")))
+    weeks_label = "，".join(f"{w}周" for w in weeks)
+    weekday_raw = str(row.get("上课星期", "")).strip()
+    weekday_num = WEEKDAY_MAP.get(weekday_raw, 0)
+    weekday_label = weekday_raw or NUM_TO_WEEKDAY.get(weekday_num, "")
+    start_period = _to_int(row.get("开始节次"))
+    end_period = _to_int(row.get("结束节次"))
+    time_of_day = _time_of_day(start_period)
+    project = str(row.get("实验项目名称", "")).strip()
+    teacher = str(row.get("上课教师", "")).strip()
+    group_key = f"{project}|{teacher}|{weekday_num}|{start_period}|{end_period}|{weeks_label}"
 
-        entry = {
-            "studentId": str(row.get("学号", "")).strip(),
-            "name": str(row.get("姓名（可能有重名）", "")).strip(),
-            "dept": str(row.get("院系名称", "")).strip(),
-            "major": str(row.get("专业名称", "")).strip(),
-            "clazz": str(row.get("班级名称", "")).strip(),
-            "project": project,
-            "kind": "lab",
-            "color": COLOR_MAP["lab"],
-            "weeks": weeks,
-            "weeksLabel": weeks_label,
-            "weekday": weekday_num,
-            "weekdayLabel": weekday_label,
-            "timeOfDay": time_of_day,
-            "startPeriod": start_period,
-            "endPeriod": end_period,
-            "teacher": teacher,
-            "groupKey": group_key,
-        }
-        entries.append(entry)
+    entry = {
+      "studentId": str(row.get("学号", "")).strip(),
+      "name": str(row.get("姓名（可能有重名）", "")).strip(),
+      "dept": str(row.get("院系名称", "")).strip(),
+      "major": str(row.get("专业名称", "")).strip(),
+      "clazz": str(row.get("班级名称", "")).strip(),
+      "project": project,
+      "kind": "lab",
+      "color": COLOR_MAP["lab"],
+      "weeks": weeks,
+      "weeksLabel": weeks_label,
+      "weekday": weekday_num,
+      "weekdayLabel": weekday_label,
+      "timeOfDay": time_of_day,
+      "startPeriod": start_period,
+      "endPeriod": end_period,
+      "teacher": teacher,
+      "groupKey": group_key,
+    }
+    entries.append(entry)
 
-        if group_key not in session_map:
-            session_map[group_key] = {
-                "groupKey": group_key,
-                "project": project,
-                "teacher": teacher,
-                "weeks": weeks,
-                "weeksLabel": weeks_label,
-                "weekday": weekday_num,
-                "weekdayLabel": weekday_label,
-                "timeOfDay": time_of_day,
-                "startPeriod": start_period,
-                "endPeriod": end_period,
-                "students": [],
-            }
-        session_map[group_key]["students"].append(
-            {
-                "studentId": entry["studentId"],
-                "name": entry["name"],
-                "dept": entry["dept"],
-                "major": entry["major"],
-                "clazz": entry["clazz"],
-            }
-        )
-
-    session_list = sorted(
-        session_map.values(),
-        key=lambda x: (min(x["weeks"] or [99]), x["weekday"], x["startPeriod"], x["project"]),
+    if group_key not in session_map:
+      session_map[group_key] = {
+        "groupKey": group_key,
+        "project": project,
+        "teacher": teacher,
+        "weeks": weeks,
+        "weeksLabel": weeks_label,
+        "weekday": weekday_num,
+        "weekdayLabel": weekday_label,
+        "timeOfDay": time_of_day,
+        "startPeriod": start_period,
+        "endPeriod": end_period,
+        "students": [],
+      }
+    session_map[group_key]["students"].append(
+      {
+        "studentId": entry["studentId"],
+        "name": entry["name"],
+        "dept": entry["dept"],
+        "major": entry["major"],
+        "clazz": entry["clazz"],
+      }
     )
 
-    if lecture_df is not None:
-        for _, row in lecture_df.iterrows():
-            weeks = sorted(parse_weeks(row.get("周次")))
-            weeks_label = "，".join(f"{w}周" for w in weeks)
-            raw_weekday = str(row.get("上课星期", "")).strip()
-            weekday_num = parse_weekday(raw_weekday) or 0
-            if weekday_num == 0:
-                try:
-                    weekday_num = int(raw_weekday)
-                except Exception:
-                    weekday_num = 0
-            weekday_label = NUM_TO_WEEKDAY.get(weekday_num, raw_weekday)
-            start_p, end_p = parse_period_range(row.get("上课节次"))
-            start_p = start_p or 0
-            end_p = end_p or 0
-            time_of_day = _time_of_day(start_p)
-            project = str(row.get("课程名", "理论课"))
-            entry = {
-                "studentId": str(row.get("学号", "")).strip(),
-                "name": str(row.get("姓名（可能有重名）", "")).strip(),
-                "dept": str(row.get("院系名称", "")).strip(),
-                "major": str(row.get("专业名称", "")).strip(),
-                "clazz": str(row.get("班级名称", "")).strip(),
-                "project": project,
-                "kind": "lecture",
-                "color": COLOR_MAP["lecture"],
-                "weeks": weeks,
-                "weeksLabel": weeks_label,
-                "weekday": weekday_num,
-                "weekdayLabel": weekday_label,
-                "timeOfDay": time_of_day,
-                "startPeriod": start_p,
-                "endPeriod": end_p,
-                "teacher": str(row.get("课程号", "理论课")),
-                "groupKey": f"lecture|{project}|{weekday_num}|{start_p}|{end_p}|{weeks_label}",
-            }
-            entries.append(entry)
+  session_list = sorted(
+    session_map.values(),
+    key=lambda x: (min(x["weeks"] or [99]), x["weekday"], x["startPeriod"], x["project"]),
+  )
 
-    return {"entries": entries, "sessions": session_list}
+  if lecture_df is not None:
+    for _, row in lecture_df.iterrows():
+      weeks = sorted(parse_weeks(row.get("周次")))
+      weeks_label = "，".join(f"{w}周" for w in weeks)
+      raw_weekday = str(row.get("上课星期", "")).strip()
+      weekday_num = parse_weekday(raw_weekday) or 0
+      if weekday_num == 0:
+        try:
+          weekday_num = int(raw_weekday)
+        except Exception:
+          weekday_num = 0
+      weekday_label = NUM_TO_WEEKDAY.get(weekday_num, raw_weekday)
+      start_p, end_p = parse_period_range(row.get("上课节次"))
+      start_p = start_p or 0
+      end_p = end_p or 0
+      time_of_day = _time_of_day(start_p)
+      project = str(row.get("课程名", "理论课"))
+      entry = {
+        "studentId": str(row.get("学号", "")).strip(),
+        "name": str(row.get("姓名（可能有重名）", "")).strip(),
+        "dept": str(row.get("院系名称", "")).strip(),
+        "major": str(row.get("专业名称", "")).strip(),
+        "clazz": str(row.get("班级名称", "")).strip(),
+        "project": project,
+        "kind": "lecture",
+        "color": COLOR_MAP["lecture"],
+        "weeks": weeks,
+        "weeksLabel": weeks_label,
+        "weekday": weekday_num,
+        "weekdayLabel": weekday_label,
+        "timeOfDay": time_of_day,
+        "startPeriod": start_p,
+        "endPeriod": end_p,
+        "teacher": str(row.get("课程号", "理论课")),
+        "groupKey": f"lecture|{project}|{weekday_num}|{start_p}|{end_p}|{weeks_label}",
+      }
+      entries.append(entry)
+
+  return {"entries": entries, "sessions": session_list}
 
 
-def render_html(output: Path, data_url: str) -> None:
+def render_html(output: Path, data_url: str, use_gzip: bool) -> None:
     template = """<!DOCTYPE html>
 <html lang=\"zh\">
 <head>
@@ -237,6 +238,7 @@ button:hover { background: #0c78a8; }
   </div>
   <div id=\"week-container\" style=\"margin-top:12px; overflow-x:auto;\"></div>
 </section>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <script>
 let data = null;
 const DATA_URL = '__DATA_URL__';
@@ -245,6 +247,19 @@ const weekdayLabels = [\"星期一\", \"星期二\", \"星期三\", \"星期四\
 const periods = Array.from({ length: 13 }, (_, i) => i + 1);
 let currentEntries = [];
 let currentWeek = 1;
+const USE_GZIP = __USE_GZIP__;
+function loadData() {
+  return fetch(DATA_URL).then(resp => {
+    if (!resp.ok) throw new Error('数据文件加载失败');
+    if (USE_GZIP) {
+      return resp.arrayBuffer().then(buf => {
+        const inflated = pako.inflate(new Uint8Array(buf), { to: 'string' });
+        return JSON.parse(inflated);
+      });
+    }
+    return resp.json();
+  });
+}
 
 function initSessions() {
   const sel = document.getElementById('session-select');
@@ -423,19 +438,23 @@ function handleSessionView() {
   tableWrap.innerHTML = `<table class=\"table\"><thead><tr><th>学号</th><th>姓名</th><th>院系</th><th>专业</th><th>班级</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-fetch(DATA_URL)
-  .then(resp => resp.json())
+loadData()
   .then(d => { data = d; initSessions(); renderLabCalendar(); renderWeekView(); })
   .catch(err => { console.error(err); document.body.innerHTML = '<div style="padding:16px;color:#ef4444;">数据加载失败</div>'; });
 </script>
 </body>
 </html>"""
     html = template.replace("__DATA_URL__", data_url)
+    html = html.replace("__USE_GZIP__", "true" if use_gzip else "false")
     output.write_text(html, encoding="utf-8")
 
 
-def write_data_file(data: Dict[str, List[dict]], path: Path) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+def write_data_file(data: Dict[str, List[dict]], path: Path, compress: bool) -> None:
+    if compress:
+        with gzip.open(path, "wt", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    else:
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
 def parse_args() -> argparse.Namespace:
@@ -448,6 +467,19 @@ def parse_args() -> argparse.Namespace:
         help="学生已有理论课表，用于重叠显示避免冲突",
     )
     parser.add_argument("--output", type=str, default="output/schedule.html", help="输出 HTML 路径")
+    parser.add_argument(
+        "--compress-data",
+        dest="compress_data",
+        action="store_true",
+        default=True,
+        help="是否将数据文件 gzip 压缩（默认开启，显著减小体积）",
+    )
+    parser.add_argument(
+        "--no-compress-data",
+        dest="compress_data",
+        action="store_false",
+        help="禁用数据文件压缩，调试用",
+    )
     return parser.parse_args()
 
 
@@ -460,9 +492,9 @@ def main() -> None:
     if not output_path.parent.exists():
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data_path = output_path.with_suffix(".data.json")
-    write_data_file(data, data_path)
-    render_html(output_path, data_path.name)
+    data_path = output_path.with_suffix(".data.json.gz" if args.compress_data else ".data.json")
+    write_data_file(data, data_path, compress=args.compress_data)
+    render_html(output_path, data_path.name, use_gzip=args.compress_data)
 
     print(f"已生成可视化 HTML: {output_path}")
     print(f"数据文件: {data_path}")

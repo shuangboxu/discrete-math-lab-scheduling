@@ -70,14 +70,28 @@ button:hover { background: #0c78a8; }
   </div>
   <div id="week-container" style="margin-top:12px; overflow-x:auto;"></div>
 </section>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <script>
 let data = null;
-const DATA_URL = 'schedule.data.json';
+const DATA_URL = 'schedule.data.json.gz';
 const times = ["上午", "下午", "晚上"];
 const weekdayLabels = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
 const periods = Array.from({ length: 13 }, (_, i) => i + 1);
 let currentEntries = [];
 let currentWeek = 1;
+const USE_GZIP = true;
+function loadData() {
+  return fetch(DATA_URL).then(resp => {
+    if (!resp.ok) throw new Error('数据文件加载失败');
+    if (USE_GZIP) {
+      return resp.arrayBuffer().then(buf => {
+        const inflated = pako.inflate(new Uint8Array(buf), { to: 'string' });
+        return JSON.parse(inflated);
+      });
+    }
+    return resp.json();
+  });
+}
 
 function initSessions() {
   const sel = document.getElementById('session-select');
@@ -256,8 +270,7 @@ function handleSessionView() {
   tableWrap.innerHTML = `<table class="table"><thead><tr><th>学号</th><th>姓名</th><th>院系</th><th>专业</th><th>班级</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-fetch(DATA_URL)
-  .then(resp => resp.json())
+loadData()
   .then(d => { data = d; initSessions(); renderLabCalendar(); renderWeekView(); })
   .catch(err => { console.error(err); document.body.innerHTML = '<div style="padding:16px;color:#ef4444;">数据加载失败</div>'; });
 </script>
