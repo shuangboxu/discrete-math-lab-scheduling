@@ -1,3 +1,210 @@
+# Physics Laboratory Course Scheduling Script
+
+This project provides a Python-based tool for scheduling university physics laboratory courses.  
+The scheduler strictly satisfies all **Category A hard constraints** and attempts to optimize **Category B objectives** where possible.  
+All input data are read from Excel files in the `raw/` directory, and the output is generated as a CSV file that conforms to the required template format.
+
+---
+
+## Environment and Dependencies
+
+- Python 3.13 (local testing environment)
+- Dependency: `pandas` (the only non-standard library required)
+
+If the dependency is not installed, run:
+```bash
+pip install pandas
+```
+
+---
+
+## Directory Structure
+
+- `raw/`  
+  Input Excel files (laboratory schedule, student lecture timetable, export template)
+
+- `src/`  
+  Core source code  
+  - `data_loader.py` – Load and clean Excel data  
+  - `models.py` – Data structures for time slots, students, and laboratory groups  
+  - `scheduler.py` – Scheduling algorithm and result assembly  
+  - `main.py` – Command-line entry point  
+
+- `output/`  
+  Default output directory; `schedule.csv` will be generated after execution
+
+- `report.md`  
+  Explanation of the discrete mathematics methods
+
+- `TASK.txt`  
+  Requirement specification
+
+---
+
+## Usage
+
+Run the following command in the project root directory  
+(default requirement: **30 credit hours per student**):
+
+```bash
+python -m src.main
+```
+
+### Common Arguments
+
+- `--required-hours`  
+  Required laboratory credit hours per student (default: `30`)
+
+- `--lab-file`  
+  Path to the laboratory schedule file  
+  (default: `raw/lab_schedule.xlsx`)
+
+- `--student-lecture-file`  
+  Path to the existing lecture timetable  
+  (default: `raw/student_current_lecture_schedule.xlsx`)  
+  > Only lecture conflicts are checked; existing laboratory schedules are ignored.
+
+- `--output`  
+  Output CSV path (default: `output/schedule.csv`)
+
+- `--seed`  
+  Random seed for reproducible assignment order (default: `42`)
+
+### Example
+
+```bash
+python -m src.main --required-hours 21 --output output/schedule_21h.csv
+```
+
+---
+
+## Visualization (HTML)
+
+An interactive, searchable, calendar-style HTML visualization can be generated from the scheduling results.  
+Existing lecture timetables can be overlaid for comparison.
+
+```bash
+python -m src.visualize \
+  --input output/schedule.csv \
+  --lecture-file raw/student_current_lecture_schedule.xlsx \
+  --output output/schedule.html
+```
+
+### Features
+
+- **Student Query**  
+  Filter by student ID or name; display a grid view of  
+  *Weeks 1–16 × Morning / Afternoon / Evening*
+
+- **Session View**  
+  Select a laboratory session to view the student list and statistics by major and class
+
+- **Calendar View**  
+  1. Weeks 1–16 × Morning / Afternoon / Evening (laboratory sessions only)  
+  2. Weekly day-by-day view showing both laboratory and lecture courses, with one-click week switching
+
+- **Course Overlay**  
+  - Laboratory courses: blue gradient  
+  - Lecture courses: orange gradient  
+  This makes conflicts and free time easy to identify.
+
+---
+
+## Core Workflow
+
+1. **Excel Parsing**  
+   Standardize week ranges, weekdays, and class periods, and convert them into comparable time-slot objects.
+
+2. **Student and Timetable Assembly**  
+   Merge only lecture-course busy time to construct the conflict table  
+   (existing laboratory schedules are ignored).
+
+3. **Laboratory Group Construction**  
+   Build laboratory group information, including capacity, credit hours, and time slots.
+
+4. **Greedy Assignment**  
+   Group students by class/major and iteratively assign them to laboratory groups that are conflict-free and not full.  
+   The scoring function considers:
+   - Capacity balance  
+   - Class/major aggregation  
+   - Distribution across weeks  
+   - Time-slot consistency
+
+5. **Output Generation**  
+   Generate `schedule.csv` according to the export template.  
+   The “laboratory capacity” column records the **actual assigned number of students**.
+
+6. **Reporting**  
+   If any students fail to meet the required credit hours, the terminal displays the total count and the first 20 cases.
+
+---
+
+## Output Format
+
+The column order of `schedule.csv` strictly follows the template:
+
+```
+Index,
+Faculty,
+Major,
+Class,
+Student ID,
+Student Name (may be duplicated),
+Experiment Name,
+Weeks,
+Weekday,
+Start Period,
+End Period,
+Instructor,
+Assigned Student Count,
+Credit Hours
+```
+
+---
+
+## Local Testing Status
+
+- Command executed:  
+  `python -m src.main`
+
+- Test data:  
+  Two Excel files under `raw/`  
+  (laboratory schedule and student lecture timetable)
+
+- Result:  
+  `output/schedule.csv` generated successfully
+
+- Summary:  
+  - Students: 2888  
+  - Required credit hours: 86,640  
+  - Available laboratory credit hours: 91,152  
+  - All students satisfied the credit-hour requirement
+
+- Visualization:  
+  ```bash
+  python -m src.visualize --input output/schedule.csv --output output/schedule.html
+  ```
+  HTML file generated successfully.
+
+---
+
+## Possible Manual Adjustments
+
+If it is necessary to ensure that **all students meet the required credit hours**, consider:
+
+1. Increasing the number of sessions or capacities in `lab_schedule.xlsx`
+2. Reducing the value of `--required-hours`
+3. Manually adjusting assignments for students with insufficient credit hours  
+   (the first 20 cases are listed in the terminal; others can be identified via logs or filtering)
+
+---
+
+## Notes and FAQs
+
+- The “assigned student count” column reflects the **actual number of assigned students**, which may differ from the original capacity.
+- Rows with unparseable date or period formats in Excel files are skipped.
+- Re-running the script will overwrite `output/schedule.csv` by default.
+
 # 物理实验排课脚本
 
 本项目提供基于 Python 的物理实验排课工具，满足 A 类硬约束，并尽量兼顾 B 类优化目标。源数据均来自 `raw/` 目录的 Excel 文件，输出为模板格式的 CSV。
