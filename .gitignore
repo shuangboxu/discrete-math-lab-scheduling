@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+.env/
+
+# Excel temp
+~$*.xlsx
+
+# Output files (optional: 如果不想上传结果)
+# output/
+
+# OS
+.DS_Store
+Thumbs.db

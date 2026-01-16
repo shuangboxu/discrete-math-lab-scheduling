@@ -1,0 +1,111 @@
+[中文报告]
+标题：离散数学方法在高校物理实验排课中的应用研究
+作者：张三，李四
+摘要：本报告围绕高校大规模物理实验排课问题，利用离散数学的图论、组合优化与离散概率方法，构建了一个兼顾硬约束与软优化目标的贪心调度框架，并实现了数据清洗、冲突检测、排课求解与可视化展示的全流程。我们在 2888 名学生、数百个实验场次的真实数据集上验证了算法的可行性，全部学生的学时需求得到满足，且理论课冲突率为零。报告首先介绍问题背景与建模思路，随后给出算法设计、复杂度分析与实验评估，最后总结局限与改进方向。
+
+正文：
+一、问题背景
+高校物理实验课普遍具有以下特点：学生规模大，场次多，时间与容量刚性强，同时需避开已有理论课、确保学时达标、尽量同班同专业聚合。传统人工排课耗时且易出错。离散数学提供了图模型与组合优化的工具，可在可接受时间内求得高质量可行解。
+
+二、需求与约束分析
+硬约束包括：1) 每名学生学时达到设定阈值（如 30 学时）；2) 不与已有理论课或已分配实验课冲突；3) 场次容量不超限；4) 每个学生同一实验项目不重复分配。软目标包括：班级/专业聚合（B8）、周次分散（B7）、同一时段偏好（B9）、容量均衡。输入数据来自实验排课表与学生理论课表，需清洗周次、星期、节次并统一成可比较的时间片。
+
+三、离散建模
+1. 时间片模型：使用四元组 (Weeks, Weekday, Start, End) 表示，冲突判定为周次交集且节次重叠。
+2. 实验组模型：节点属性含容量、课时、教师、项目名等。剩余容量为动态状态。
+3. 学生模型：记录忙碌时间集合、已分配实验集合、已修项目集合、班级/专业元数据。
+4. 约束图：可将“学生-实验组”匹配视作二部图，边存在当且仅当无冲突且未修重复项目且有余量。求解目标是覆盖学生节点，使学时约束满足并最小化多目标评分。
+
+四、算法设计
+采用分组贪心：
+1) 分组与随机：按班级/专业聚类学生，组内随机打散，提升同班聚合概率并避免顺序偏置。
+2) 候选生成：对每个学生遍历所有实验组，过滤容量、项目重复与时间冲突，生成可行集合。
+3) 评分函数：occupancy_ratio（已占/容量）、class_bonus（同班/专业人数取负以鼓励聚合）、spread_bonus（周次距离取负以鼓励分散）、slot_bonus（同一时段重复取负以提升一致性）。按 (occupancy_ratio, class_bonus, spread_bonus, slot_bonus) 词典序升序选最优。
+4) 迭代分配：在可行集合非空时取评分最小的实验组，更新学生已分配集合与实验组人数。学时满足即停止。
+5) 同班/专业强化：评分项增加可调权重 w_occupancy, w_class, w_hetero, w_spread, w_slot；同班占比用“同班/同专业人数 ÷ (组内人数+1)”计算，异质度用“不同班级/专业数量 ÷ 组内人数”惩罚。
+6) 局部交换：在贪心结果上执行若干次随机交换（默认 200 次），仅当不违反硬约束且能降低两组异质度时接受，以进一步聚合同班同专业。
+7) CLI 示例：python -m src.main --w-class 1.2 --w-hetero 0.6 --swap-iterations 300。
+
+五、复杂度分析
+候选生成 O(S*G)（S 学生数，G 场次数），评分与排序对单个学生 O(G log G)；整体近似 O(S*G log G)。在数据规模 2888*几百 场次下运行数秒内完成。
+
+六、数据清洗与冲突检测
+1) 周次解析：支持“1-6周,8周”与数字形式，转换为集合；
+2) 星期解析：新增对数字字符串 1-7 的支持，防止理论课忙碌时间遗漏；
+3) 节次解析：支持“第3节”“3-5节”。
+冲突检测基于时间片交集判断，保证理论课与实验课零冲突。
+
+七、实验结果
+- 学生 2888 人，需求学时 86640，供给学时 91152；
+- 所有人学时达标，理论课冲突率 0；
+- 运行时间数秒，输出符合模板 CSV。
+可视化：生成 HTML，提供 1-16 周×上午/下午/晚上实验网格、按节次的周视图（1-13 节，含实验与已有课程）、搜索与课次分布统计。
+
+八、局限与改进
+1) 已加入轻量局部交换，但仍可能陷入局部最优；可进一步演化为模拟退火/禁忌搜索并叠加多目标评分。
+2) 软目标权重已可配置，但尚未自动调参；可基于历史满意度或贝叶斯优化自动学习权重。
+3) 未考虑实验室资源多维约束；可扩展为多维装箱或 ILP。
+4) 未做冲突解释与修复建议；可添加诊断报告与交互调剂。
+
+九、结论
+离散数学提供的图模型与贪心策略，在大规模物理实验排课场景下可快速得到高可用解。通过完善的解析与冲突检测，确保硬约束满足；通过多维评分，兼顾软目标。未来可探索局部搜索、匹配优化与强化学习结合的混合策略，进一步提升公平性与稳健性。
+
+参考文献：
+[1] Korte, Vygen. Combinatorial Optimization.
+[2] Vazirani. Approximation Algorithms.
+[3] Cormen et al. Introduction to Algorithms.
+[4] 教务处内部排课规范与实验教学大纲。
+
+
+[English Report]
+Title: Applying Discrete Mathematics to Large-Scale Physics Lab Scheduling
+Authors: Zhang San, Li Si
+Abstract: This report presents a discrete-mathematics-driven approach to large-scale physics lab scheduling in universities. Leveraging graph models, combinatorial optimization, and discrete probability, we design a greedy framework that satisfies hard constraints—no conflicts with existing lectures, capacity limits, unique lab project per student, and required credit hours—while optimizing soft goals such as class/major cohesion, week dispersion, and time-slot consistency. We implemented a full pipeline covering data cleaning, conflict detection, scheduling, and HTML visualization. On a real dataset with 2,888 students and hundreds of lab sessions, every student met the required hours and no conflicts with lectures were observed. We detail the problem background, modeling, algorithm design, complexity analysis, empirical evaluation, and future improvements.
+
+Main Body:
+1. Background
+Physics lab scheduling faces rigid time slots, fixed capacities, and the need to avoid lecture clashes while meeting hour requirements for thousands of students. Manual scheduling is slow and error-prone. Discrete mathematics offers graph-based formulations and combinatorial heuristics that yield high-quality feasible schedules in practical time.
+
+2. Requirements and Constraints
+Hard constraints: (a) each student attains the required hours (e.g., 30); (b) no overlap with existing lectures or already assigned labs; (c) session capacity not exceeded; (d) no duplicate assignment of the same lab project to a student. Soft goals: class/major cohesion, week dispersion, consistent time-of-day preference, capacity balance. Inputs include the lab session table and the current lecture timetable; all times are normalized to comparable time slots.
+
+3. Discrete Modeling
+- TimeSlot: (Weeks, Weekday, Start, End); conflict holds if week sets intersect, weekdays match, and periods overlap.
+- LabSession: capacity, hours, teacher, project; dynamic remaining seats.
+- Student: busy slots (lectures), assigned labs, taken projects, class/major metadata.
+- Constraint graph: a bipartite graph between students and lab sessions; an edge exists iff capacity remains, the project is new to the student, and no time conflict. The objective is to cover students to required hours while minimizing a multi-term score.
+
+4. Algorithm Design (Greedy with grouped ordering)
+- Grouping & shuffle: cluster students by class/major, shuffle within groups to encourage cohesion and reduce order bias.
+- Candidate generation: for each student, filter sessions by capacity, project uniqueness, and conflict-free times.
+- Scoring: occupancy_ratio (fill level), class_bonus (negative count of classmates/major-mates already in the session), spread_bonus (negative min week distance to existing assignments), slot_bonus (negative count of same time-of-day assignments). Sort candidates lexicographically by these scores and pick the best.
+- Iteration: assign until the student meets required hours; update session rosters and student state.
+
+5. Complexity Analysis
+Candidate building is O(S*G); sorting per student is O(G log G); overall roughly O(S*G log G), which runs in seconds for ~2,888 students and hundreds of sessions.
+
+6. Data Cleaning and Conflict Detection
+- Weeks: parse ranges like “1-6,8”.
+- Weekday: now also accepts numeric strings 1-7 to avoid missing lecture busy slots.
+- Periods: parse forms like “3-5”.
+Conflict detection uses intersection logic on week sets and period intervals, ensuring zero conflicts with lectures.
+
+7. Experimental Results
+- Students: 2,888; required hours: 86,640; supplied hours: 91,152.
+- All students met required hours; lecture conflict rate: 0; runtime: seconds.
+- Output: template-compliant CSV; Visualization: HTML with (a) 1–16 week × morning/afternoon/evening lab grid, (b) period-based weekly view (1–13 periods) overlaying labs and existing courses, plus search and session-wise distribution stats.
+
+8. Limitations and Future Work
+- Greedy may get stuck in local optima; consider local search, simulated annealing, or ILP warm starts.
+- Soft-goal weights are fixed; can tune or learn weights via multi-objective calibration.
+- Resource dimensions (rooms/equipment) are not modeled; extend to multi-dimensional packing or ILP with additional constraints.
+- No automated conflict explanations or repair suggestions; add diagnostic reporting and interactive re-assignment tools.
+
+9. Conclusion
+Discrete mathematics—through graph modeling and greedy heuristics—provides a fast, practical solution for large-scale physics lab scheduling. Robust parsing and conflict checks guarantee hard constraints, while multi-factor scoring balances soft goals. Future hybrid approaches combining matching optimization, local search, and reinforcement learning may further improve fairness and robustness.
+
+References:
+[1] Korte, B., Vygen, J. Combinatorial Optimization.
+[2] Vazirani, V. Approximation Algorithms.
+[3] Cormen, T. et al. Introduction to Algorithms.
+[4] Internal academic scheduling guidelines and physics lab syllabi.

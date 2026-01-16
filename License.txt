@@ -1,0 +1,12 @@
+Academic Use Only License
+
+Copyright (c) 2026
+
+Permission is granted to use this code solely for academic learning,
+course assessment, and non-commercial research purposes.
+
+Any use of this algorithm or implementation for actual course scheduling,
+laboratory arrangement, or teaching administration without explicit written
+permission from the author is strictly prohibited.
+
+All other rights are reserved.
